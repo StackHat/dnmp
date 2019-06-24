@@ -1,25 +1,29 @@
 DNMP（Docker + Nginx + MySQL + PHP7/5 + Redis）是一款全功能的**LNMP一键安装程序**。
 
+**QQ群：** 572041090  （请备注dnmp交流）
+
 **[[ENGLISH]](README-en.md)**
 
 DNMP项目特点：
 1. `100%`开源
 2. `100%`遵循Docker标准
-3. 支持**多版本PHP**共存，可任意切换（PHP5.4、PHP5.6、PHP7.2)
+3. 支持**多版本PHP**共存，可任意切换（~~PHP5.4、~~PHP5.6、PHP7.2)
 4. 支持绑定**任意多个域名**
 5. 支持**HTTPS和HTTP/2**
 6. **PHP源代码、MySQL数据、配置文件、日志文件**都可在Host中直接修改查看
 7. 内置**完整PHP扩展安装**命令
-8. 默认安装`pdo_mysql`、`redis`、`xdebug`、`swoole`等常用热门扩展，拿来即用
+8. 默认支持`pdo_mysql`、`redis`、`xdebug`、`swoole`等常用热门扩展，根据环境灵活配置
 9. 带有phpmyadmin和phpredisadmin数据库在线管理程序
 10. 实际项目中应用，确保`100%`可用
 11. 一次配置，**Windows、Linux、MacOs**皆可用
 
-
 # 目录
 - [1.目录结构](#1目录结构)
 - [2.快速使用](#2快速使用)
-- [3.切换PHP版本](#3切换php版本)
+- [3.PHP和扩展](#3PHP和扩展)
+    - [3.1 切换Nginx使用的PHP版本](#31-切换Nginx使用的PHP版本)
+    - [3.2 安装PHP扩展](#32-安装PHP扩展)
+    - [3.3 Host中使用php命令行（php-cli）](#33-host中使用php命令行php-cli)
 - [4.添加快捷命令](#4添加快捷命令)
 - [5.使用Log](#5使用log)
     - [5.1 Nginx日志](#51-nginx日志)
@@ -32,24 +36,26 @@ DNMP项目特点：
 - [8.在正式环境中安全使用](#8在正式环境中安全使用)
 - [9.常见问题](#9常见问题)
     - [9.1 如何在PHP代码中使用curl？](#91-如何在php代码中使用curl)
+    - [9.2 Docker使用cron定时任务](#92-Docker使用cron定时任务)
 
 
 ## 1.目录结构
 
 ```
 /
-├── conf                    配置文件目录
-│   ├── conf.d              Nginx用户站点配置目录
-│   ├── nginx.conf          Nginx默认配置文件
-│   ├── mysql.cnf           MySQL用户配置文件
-│   ├── php-fpm.conf        PHP-FPM配置文件（部分会覆盖php.ini配置）
-│   └── php.ini             PHP默认配置文件
-├── Dockerfile              PHP镜像构建文件
-├── extensions              PHP扩展源码包
-├── log                     Nginx日志目录
-├── mysql                   MySQL数据目录
-├── www                     PHP代码目录
-└── source.list             Debian源文件
+├── conf                        配置文件目录
+│   ├── conf.d                  Nginx用户站点配置目录
+│   ├── nginx.conf              Nginx默认配置文件
+│   ├── mysql.cnf               MySQL用户配置文件
+│   ├── php-fpm.conf            PHP-FPM配置文件（部分会覆盖php.ini配置）
+│   └── php.ini                 PHP默认配置文件
+├── Dockerfile                  PHP镜像构建文件
+├── extensions                  PHP扩展源码包
+├── log                         日志目录
+├── mysql                       MySQL数据目录
+├── docker-compose-sample.yml   Docker 服务配置示例文件
+├── env.smaple                  环境配置示例文件
+└── www                         PHP代码目录
 ```
 结构示意图：
 
@@ -66,12 +72,14 @@ DNMP项目特点：
     ```
     $ sudo gpasswd -a ${USER} docker
     ```
-4. 拷贝环境配置文件`env.sample`为`.env`，启动：
+4. 拷贝并命名配置文件（Windows系统请用copy命令），启动：
     ```
     $ cd dnmp
-    $ cp env.sample .env   # Windows系统请用copy命令，或者用编辑器打开后另存为.env
+    $ cp env.sample .env
+    $ cp docker-compose-sample.yml docker-compose.yml
     $ docker-compose up
     ```
+    注意：Windows安装360安全卫士的同学，请先将其退出，不然安装过程中可能Docker创建账号过程可能被拦截，导致启动时文件共享失败；
 5. 访问在浏览器中访问：
 
  - [http://localhost](http://localhost)： 默认*http*站点
@@ -79,30 +87,75 @@ DNMP项目特点：
 
 两个站点使用同一PHP代码：`./www/localhost/index.php`。
 
-要修改端口、日志文件位置、以及是否替换source.list文件等，请修改.env文件，然后重新构建：
+要修改端口、日志文件位置等，请修改**.env**文件，然后重新构建：
 ```bash
-$ docker-compose build php54    # 重建单个服务
+$ docker-compose build php72    # 重建单个服务
 $ docker-compose build          # 重建全部服务
 
 ```
 
 
-## 3.切换PHP版本
-默认情况下，我们同时创建 **PHP5.4、PHP5.6和PHP7.2** 三个PHP版本的容器，
+## 3.PHP和扩展
+### 3.1 切换Nginx使用的PHP版本
+默认情况下，我们同时创建 **PHP5.6和PHP7.2** 2个PHP版本的容器，
 
 切换PHP仅需修改相应站点 Nginx 配置的`fastcgi_pass`选项，
 
-例如，示例的 [http://localhost](http://localhost) 用的是PHP5.4，Nginx 配置：
-```
-    fastcgi_pass   php54:9000;
-```
-要改用PHP7.2，修改为：
+例如，示例的 [http://localhost](http://localhost) 用的是PHP7.2，Nginx 配置：
 ```
     fastcgi_pass   php72:9000;
+```
+要改用PHP5.6，修改为：
+```
+    fastcgi_pass   php56:9000;
 ```
 再 **重启 Nginx** 生效。
 ```bash
 $ docker exec -it dnmp_nginx_1 nginx -s reload
+```
+### 3.2 安装PHP扩展
+PHP的很多功能都是通过扩展实现，而安装扩展是一个略费时间的过程，
+所以，除PHP内置扩展外，在`env.sample`文件中我们仅默认安装少量扩展，
+如果要安装更多扩展，请打开你的`.env`文件修改如下的PHP配置，
+增加需要的PHP扩展：
+```bash
+PHP72_EXTENSIONS=pdo_mysql,opcache,redis       # PHP 7.2要安装的扩展列表，英文逗号隔开
+PHP56_EXTENSIONS=opcache,redis                 # PHP 5.6要安装的扩展列表，英文逗号隔开
+```
+然后重新build PHP镜像。
+    ```bash
+    docker-compose build php72
+    docker-compose up -d
+    ```
+可用的扩展请看同文件的`PHP extensions`注释块说明。
+
+### 3.3 Host中使用php命令行（php-cli）
+1. 打开主机的 `~/.bashrc` 或者 `~/.zshrc` 文件，加上：
+```bash
+php () {
+    tty=
+    tty -s && tty=--tty
+    docker run \
+        $tty \
+        --interactive \
+        --rm \
+        --volume $PWD:/var/www/html:rw \
+        --workdir /var/www/html \
+        dnmp_php72 php "$@"
+}
+```
+2. 让文件起效：
+```
+source ~/.bashrc
+```
+3. 然后就可以在主机中执行php命令了：
+```bash
+~ php -v
+PHP 7.2.13 (cli) (built: Dec 21 2018 02:22:47) ( NTS )
+Copyright (c) 1997-2018 The PHP Group
+Zend Engine v3.2.0, Copyright (c) 1998-2018 Zend Technologies
+    with Zend OPcache v7.2.13, Copyright (c) 1999-2018, by Zend Technologies
+    with Xdebug v2.6.1, Copyright (c) 2002-2018, by Derick Rethans
 ```
 
 ## 4.添加快捷命令
@@ -111,11 +164,10 @@ $ docker exec -it dnmp_nginx_1 nginx -s reload
 打开~/.bashrc，加上：
 ```bash
 alias dnginx='docker exec -it dnmp_nginx_1 /bin/sh'
-alias dphp72='docker exec -it dnmp_php72_1 /bin/bash'
-alias dphp56='docker exec -it dnmp_php56_1 /bin/bash'
-alias dphp54='docker exec -it dnmp_php54_1 /bin/bash'
+alias dphp72='docker exec -it dnmp_php72_1 /bin/sh'
+alias dphp56='docker exec -it dnmp_php56_1 /bin/sh'
 alias dmysql='docker exec -it dnmp_mysql_1 /bin/bash'
-alias dredis='docker exec -it dnmp_redis_1 /bin/bash'
+alias dredis='docker exec -it dnmp_redis_1 /bin/sh'
 ```
 
 ## 5.使用Log
@@ -166,18 +218,52 @@ log-error               = /var/lib/mysql/mysql.error.log
 以上是mysql.conf中的日志文件的配置。
 
 ## 6.使用composer
-***我们建议在主机HOST中使用composer而不是在容器中使用。***因为：
+**我们建议在主机HOST中使用composer，避免PHP容器变得庞大**。
+1. 在主机创建一个目录，用以保存composer的配置和缓存文件：
+    ```
+    mkdir ~/dnmp/composer
+    ```
+2. 打开主机的 `~/.bashrc` 或者 `~/.zshrc` 文件，加上：
+    ```
+    composer () {
+        tty=
+        tty -s && tty=--tty
+        docker run \
+            $tty \
+            --interactive \
+            --rm \
+            --user $(id -u):$(id -g) \
+            --volume ~/dnmp/composer:/tmp \
+            --volume /etc/passwd:/etc/passwd:ro \
+            --volume /etc/group:/etc/group:ro \
+            --volume $(pwd):/app \
+            composer "$@"
+    }
 
-1. ***composer依赖多。***必须依赖PHP、PHP zlib扩展和git才能使用，PHP和扩展没问题，不过需要安装git，会增大容器体积。
+    ```
+3. 让文件起效：
+    ```
+    source ~/.bashrc
+    ```
+4. 在主机的任何目录下就能用composer了：
+    ```
+    cd ~/dnmp/www/
+    composer create-project yeszao/fastphp project --no-dev
+    ```
+5. （可选）如果提示需要依赖，用`--ignore-platform-reqs --no-scripts`关闭依赖检测。
+6. （可选）第一次使用 composer 会在 ~/dnmp/composer 目录下生成一个config.json文件，可以在这个文件中指定国内仓库，例如：
+    ```
+    {
+        "config": {},
+        "repositories": {
+            "packagist": {
+                "type": "composer",
+                "url": "https://packagist.laravel-china.org"
+            }
+        }
+    }
 
-而且需要一个可登陆用户及用户home目录权限。
-
-PHP容器中肯定是安装了
-
-还有就是，在PHP容器中，默认是root，PHP执行的`www-data`用户是没有shell的，也没有home目录。
-
-而且如果有多个PHP版本，每个容器都安装一次composer和git，那是很费时费力费资源的事情。
-
+    ```
 
 ## 7.数据库管理
 本项目默认在`docker-compose.yml`中开启了用于MySQL在线管理的*phpMyAdmin*，以及用于redis在线管理的*phpRedisAdmin*，可以根据需要修改或删除。
@@ -214,34 +300,10 @@ Redis连接信息如下：
 
 ## 9.常见问题
 ### 9.1 如何在PHP代码中使用curl？
+参考这个issue：[https://github.com/yeszao/dnmp/issues/91](https://github.com/yeszao/dnmp/issues/91)
 
-这里我们使用curl指的是从PHP容器curl到Nginx容器，比如Nginx中我们配置了：
-- www.site1.com
-- www.site2.com
-
-在site1的PHP代码中，我们要从site1 curl site2服务器，方法如下。
-
-首先，找到Nginx容器的IP地址，命令：
-```
-$ docker network inspect dnmp_default
-...
-    "Containers": {
-        ...{
-            "Name": "nginx",
-            ...
-            "IPv4Address": "172.27.0.3/16",
-            ...
-        },
-```
-这个命令会显示连接到该网络的所有容器，容器nginx的`IPv4Address`就是nginx的IP地址。
-修改docker-compose.yml，在php54服务下加上：
-```
-  php54:
-    ...
-    extra_hosts:
-      - "www.site2.com:172.27.0.3"
-```
-这样就可以在www.site1.com中curl site2了。
+### 9.2 Docker使用cron定时任务
+[Docker使用cron定时任务](https://www.awaimai.com/2615.html)
 
 ## License
 MIT

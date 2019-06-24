@@ -6,7 +6,7 @@ Docker deploying Nginx MySQL PHP7/PHP5.6/PHP5.4 in one key, support full feature
 
 ## 1. Feature
 1. Completely open source.
-2. Support Multiple PHP version(PHP5.4, PHP5.6, PHP7.2) switch.
+2. Support Multiple PHP version(~~PHP5.4,~~ PHP5.6, PHP7.2) switch.
 3. Support Multiple domains.
 4. Support HTTPS and HTTP/2.
 5. PHP source located in host.
@@ -30,7 +30,8 @@ Docker deploying Nginx MySQL PHP7/PHP5.6/PHP5.4 in one key, support full feature
 4. Start docker containers:
     ```
     $ cd dnmp
-    $ cp env.sample .env       # Use copy command on Windows
+    $ cp env.sample .env
+    $ cp docker-compose-sample.yml docker-compose.yml
     $ docker-compose up
     ```
     You may need use `sudo` before this command in Linux.
@@ -60,5 +61,39 @@ $ docker exec -it dnmp_nginx_1 nginx -s reload
 ```
 Done.
 
-## 4. License
+## 4.Use composer
+We will always use composer in host.
+
+On host, Create a folder for saving composer config file and cache:
+```
+mkdir ~/dnmp/composer
+```
+Open ~/.bashrc, add:
+```
+composer () {
+    tty=
+    tty -s && tty=--tty
+    docker run \
+        $tty \
+        --interactive \
+        --rm \
+        --user $(id -u):$(id -g) \
+        --volume ~/dnmp/composer:/tmp \
+        --volume /etc/passwd:/etc/passwd:ro \
+        --volume /etc/group:/etc/group:ro \
+        --volume $(pwd):/app \
+        composer "$@"
+}
+```
+Make this script affect:
+```
+source ~/.bashrc
+```
+Thats all, use composer:
+```
+cd ~/dnmp/www/
+composer create-project yeszao/fastphp project --no-dev
+```
+
+## License
 MIT
